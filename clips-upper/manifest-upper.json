@@ -1,0 +1,298 @@
+{
+ "set": "upper-body",
+ "mesh": "humanoid-mannequin.glb",
+ "skeleton": "Quaternius Rigify (53 DEF-* bones, stripped-dot names as Three.js sees them)",
+ "source": "Quaternius Universal Animation Library (Standard, CC0) \u2014 mesh source only. None of its 46 clips matches any of these 15 exercises (closest are Push_Loop / Punch_* / Crouch_*, none a rep of a lift), so all 15 clips are hand-keyframed in Three.js (2-bone IK + world-offset FK), following the barbell-back-squat PoC method.",
+ "license": "CC0 1.0 Universal (public domain). Verbatim license in ../LICENSE-CC0-Quaternius.txt.",
+ "clipCount": 15,
+ "totalBytes": 922724,
+ "notVerifiedOnRealDevice": true,
+ "notes": "Body-only motion: the shared mesh carries one procedural barbell parented to DEF-spine003 (upper back). It does not track the hands, so for bench/deadlift/row/press it rides the back while the hands move \u2014 visually wrong for those lifts, noted per exercise in NOTES-upper.md. No dumbbell props are bundled (clip files contain no meshes, per the asset contract).",
+ "clips": [
+  {
+   "exerciseId": "barbell-bench-press",
+   "file": "barbell-bench-press.glb",
+   "clipName": "BarbellBenchPress",
+   "bytes": 67164,
+   "sha256": "a79247d1e8a47f5b6702017af070ae484970b18bdd79cce2be1664665e6dbead",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.8,
+   "trackCount": 24,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 24,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/barbell-bench-press/report.json"
+   }
+  },
+  {
+   "exerciseId": "barbell-deadlift",
+   "file": "barbell-deadlift.glb",
+   "clipName": "BarbellDeadlift",
+   "bytes": 84964,
+   "sha256": "c340945b12b6db1eb18ab1e558e7cbd0714f5095e50cd1ac546f5eec558a86f3",
+   "method": "hand-keyframed",
+   "durationSeconds": 3.2,
+   "trackCount": 29,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 29,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/barbell-deadlift/report.json"
+   }
+  },
+  {
+   "exerciseId": "overhead-press",
+   "file": "overhead-press.glb",
+   "clipName": "OverheadPress",
+   "bytes": 62732,
+   "sha256": "a1f46ff5a510071bcadd3ba3a81359685daa54b401ec398e2b812b349474cd91",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.8,
+   "trackCount": 22,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 22,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/overhead-press/report.json"
+   }
+  },
+  {
+   "exerciseId": "pull-up",
+   "file": "pull-up.glb",
+   "clipName": "PullUp",
+   "bytes": 67400,
+   "sha256": "b9af6c1b085038ec59130b3a224f4cf90dd7e3e54b702a43976f55531ed94d9f",
+   "method": "hand-keyframed",
+   "durationSeconds": 3.0,
+   "trackCount": 23,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 23,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/pull-up/report.json"
+   }
+  },
+  {
+   "exerciseId": "barbell-bent-over-row",
+   "file": "barbell-bent-over-row.glb",
+   "clipName": "BarbellBentOverRow",
+   "bytes": 78008,
+   "sha256": "1195c4e2ca242539db62a5c4ca2b24bcbdd8f2b15f71858da2e66b0211b8ec52",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.8,
+   "trackCount": 29,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 29,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/barbell-bent-over-row/report.json"
+   }
+  },
+  {
+   "exerciseId": "push-up",
+   "file": "push-up.glb",
+   "clipName": "PushUp",
+   "bytes": 49120,
+   "sha256": "7ced61a8f7c89594a252dd6c4ed093edd7a72dda003ca61205de9f77867862db",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.8,
+   "trackCount": 16,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 16,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/push-up/report.json"
+   }
+  },
+  {
+   "exerciseId": "chest-dip",
+   "file": "chest-dip.glb",
+   "clipName": "ChestDip",
+   "bytes": 73704,
+   "sha256": "6c6bb89f5612eb316ea40dada556d8dc03a643189ca2f897d2c2a290f437c897",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.8,
+   "trackCount": 27,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 27,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/chest-dip/report.json"
+   }
+  },
+  {
+   "exerciseId": "dumbbell-bicep-curl",
+   "file": "dumbbell-bicep-curl.glb",
+   "clipName": "DumbbellBicepCurl",
+   "bytes": 45836,
+   "sha256": "8b8d0401c42acd5b2b8e0303ba3337eb17391790613b0f29bfb76ebe6a44ad16",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.4,
+   "trackCount": 16,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 16,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/dumbbell-bicep-curl/report.json"
+   }
+  },
+  {
+   "exerciseId": "lateral-raise",
+   "file": "lateral-raise.glb",
+   "clipName": "LateralRaise",
+   "bytes": 45868,
+   "sha256": "45101ea2f23b0572f735c4b164fa53bfeda38e65ea93896b055c8d2566ab5861",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.4,
+   "trackCount": 16,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 16,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/lateral-raise/report.json"
+   }
+  },
+  {
+   "exerciseId": "overhead-tricep-extension",
+   "file": "overhead-tricep-extension.glb",
+   "clipName": "OverheadTricepExtension",
+   "bytes": 47792,
+   "sha256": "6c0e0371ce7b9ae45b2bd8826b6ba30c93f88c857bf122ae11db025d96804b0c",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.6,
+   "trackCount": 16,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 16,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/overhead-tricep-extension/report.json"
+   }
+  },
+  {
+   "exerciseId": "dumbbell-shoulder-press",
+   "file": "dumbbell-shoulder-press.glb",
+   "clipName": "DumbbellShoulderPress",
+   "bytes": 60120,
+   "sha256": "175e4dd748367322faa02a33ca9a600e9aad75de247966d91841e61ab1df8c32",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.6,
+   "trackCount": 22,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 22,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/dumbbell-shoulder-press/report.json"
+   }
+  },
+  {
+   "exerciseId": "dumbbell-row",
+   "file": "dumbbell-row.glb",
+   "clipName": "DumbbellRow",
+   "bytes": 74572,
+   "sha256": "c0054f5346ce6ae79eb68b251a5d625f31fa6d5330678d080881a9e08818f3e1",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.6,
+   "trackCount": 29,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 29,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/dumbbell-row/report.json"
+   }
+  },
+  {
+   "exerciseId": "lat-pulldown",
+   "file": "lat-pulldown.glb",
+   "clipName": "LatPulldown",
+   "bytes": 73716,
+   "sha256": "737bbcd692f5a772ba106b19f3285163000f3525292d0def11bdea4712f46842",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.8,
+   "trackCount": 27,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 27,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/lat-pulldown/report.json"
+   }
+  },
+  {
+   "exerciseId": "hammer-curl",
+   "file": "hammer-curl.glb",
+   "clipName": "HammerCurl",
+   "bytes": 45860,
+   "sha256": "574e618bb53f07a27cd11cc2a375508fd4e29c7faf474626cf43e49a326aced7",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.4,
+   "trackCount": 16,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 16,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/hammer-curl/report.json"
+   }
+  },
+  {
+   "exerciseId": "front-raise",
+   "file": "front-raise.glb",
+   "clipName": "FrontRaise",
+   "bytes": 45868,
+   "sha256": "59859eea0e453d7a228cbcc4e24e9efe317acd40900d8e7ca68569a5cc6398cd",
+   "method": "hand-keyframed",
+   "durationSeconds": 2.4,
+   "trackCount": 16,
+   "loop": true,
+   "verification": {
+    "binds": true,
+    "tracksBound": 16,
+    "unboundTracks": [],
+    "framesRendered": 6,
+    "consoleErrors": [],
+    "sampledJointTravel": "see tools-upper/proof-upper/front-raise/report.json"
+   }
+  }
+ ]
+}

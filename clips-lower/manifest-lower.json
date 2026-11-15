@@ -1,0 +1,576 @@
+{
+  "mesh": "humanoid-mannequin.glb",
+  "meshSha256": "b2f33a51c4405c59f342abe6e9b7904db377c759d0a16c99cb444b2ba732c824",
+  "skeleton": "Quaternius Rigify (Blender Rigify DEF-* bones), 53 bones, stripped-dot names as Three.js GLTFLoader sees them (DEF-thigh.L -> DEF-thighL)",
+  "license": "CC0 1.0 Universal (public domain). Mesh source: Quaternius Universal Animation Library (Standard), Godot GLB build — https://store.godotengine.org/asset/quaternius/universal-animation-library/download/44/. Verbatim license in ../LICENSE-CC0-Quaternius.txt. All 16 clips hand-keyframed (no reused motion), so no additional license applies.",
+  "sourceReview": "All 46 Quaternius clips reviewed by name (A_TPose, Crouch_Fwd/Idle_Loop, Dance_Loop, Death01, Driving_Loop, Fixing_Kneeling, Hit_Chest/Head, Idle_Loop/Talking/Torch_Loop, Interact, Jog_Fwd_Loop, Jump_Land/Loop/Start, PickUp_Table, Pistol_*, Punch_*, Push_Loop, Roll/Roll_RM, Sitting_*, Spell_Simple_*, Sprint_Loop, Swim_*, Sword_*, Walk_Formal_Loop, Walk_Loop). None genuinely matches any of the 16 movements: closest are Walk_Loop (a walk, not a lunge), Jump_Loop (vertical jump, not jumping jacks), Crouch_Fwd_Loop (crouch walk, not a squat). 0 reused, 16 hand-keyframed.",
+  "method": "Hand-keyframed in Node + Three.js r187, same method as the PoC squat: world-space 2-bone IK for arms/legs (planted contact points where the movement has them), torso lean distributed over hips/spine, sampled at 30 fps, first frame == last frame (loop closure). Clip files are skeleton-only + one clip; props live in the mesh file per the asset contract. Plank is a static hold animated as a subtle breathing/settle loop (hips +/-1.5 cm, spine +/-1.5 deg), not a frozen pose. Walking lunge is in-place alternating (2 steps per loop) so the loop closes without the character travelling.",
+  "props": "No props were added to any clip file (contract: clip files contain no meshes). Goblet squat and kettlebell swing are body-only: hands in a cupped/grip hold (fingers curled via finger tracks). A dumbbell/kettlebell prop parented to the hands would belong in the shared mesh file — not done here (mesh file untouched per brief).",
+  "verification": {
+    "method": "Headless Chromium (Playwright, SwiftShader WebGL) on this VM: loaded mesh GLB + each clip GLB, played the clip on the mesh with THREE.AnimationMixer, measured bone world positions, rendered 3 frames per clip (proof-lower/<id>_{t0,tmid,t75}.png). Node-side: loop closure (first vs last keyframe quat diff), reach audit (every end-effector target within limb length at every sampled frame), finite-value check on all track values.",
+    "notVerifiedOnRealDevice": true,
+    "note": "No real Android device was available on this VM. Phone-webview playback (Capacitor) is NOT yet verified — needs the app worker's on-device check, same as the PoC."
+  },
+  "clips": [
+    {
+      "exerciseId": "walking-lunge",
+      "file": "walking-lunge.glb",
+      "bytes": 89088,
+      "sha256": "f850f1639ea0e636f1ef264787fb8b7e8d7a3dade903c5228e7af558e4d9e91a",
+      "method": "hand-keyframed",
+      "durationSeconds": 3.6,
+      "clipName": "WalkingLunge",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 109,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.14,
+        "headYRangeM": 0.154,
+        "kneeZRangeM": 0.693,
+        "ankleYRangeM": 0.275,
+        "handYRangeM": 0.14,
+        "hipsYMinM": 0.62,
+        "hipsYMaxM": 0.76
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.14,
+          "headYRangeM": 0.155,
+          "ankleYRangeM": 0.276,
+          "handYRangeM": 0.14
+        }
+      }
+    },
+    {
+      "exerciseId": "goblet-squat",
+      "file": "goblet-squat.glb",
+      "bytes": 129184,
+      "sha256": "7f83b52d3272389ed2fc3f144526d768903cdebc63ac96c1017c8c4001c20bd9",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.8,
+      "clipName": "GobletSquat",
+      "trackCount": 53,
+      "keyframeCountPerTrack": 85,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.357,
+        "headYRangeM": 0.446,
+        "kneeZRangeM": 0.266,
+        "ankleYRangeM": 0,
+        "handYRangeM": 0.587,
+        "hipsYMinM": 0.56,
+        "hipsYMaxM": 0.917
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.357,
+          "headYRangeM": 0.446,
+          "ankleYRangeM": 0,
+          "handYRangeM": 0.587
+        }
+      }
+    },
+    {
+      "exerciseId": "romanian-deadlift",
+      "file": "romanian-deadlift.glb",
+      "bytes": 78156,
+      "sha256": "5308f18e8240f9d0a79e6a7e788fc4ea210fc22c30d39f69fcc3bd3468e544c7",
+      "method": "hand-keyframed",
+      "durationSeconds": 3,
+      "clipName": "RomanianDeadlift",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 91,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.097,
+        "headYRangeM": 0.532,
+        "kneeZRangeM": 0.133,
+        "ankleYRangeM": 0,
+        "handYRangeM": 0.438,
+        "hipsYMinM": 0.82,
+        "hipsYMaxM": 0.917
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.097,
+          "headYRangeM": 0.532,
+          "ankleYRangeM": 0,
+          "handYRangeM": 0.438
+        }
+      }
+    },
+    {
+      "exerciseId": "burpee",
+      "file": "burpee.glb",
+      "bytes": 89068,
+      "sha256": "09ad02940d990fb6f21f0270ce36b7fa23e3792730458319ff83aa29a8387443",
+      "method": "hand-keyframed",
+      "durationSeconds": 3.6,
+      "clipName": "Burpee",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 109,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.577,
+        "headYRangeM": 1.218,
+        "kneeZRangeM": 0.717,
+        "ankleYRangeM": 0.194,
+        "handYRangeM": 1.888,
+        "hipsYMinM": 0.442,
+        "hipsYMaxM": 1.019
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.445,
+          "headYRangeM": 1.086,
+          "ankleYRangeM": 0.084,
+          "handYRangeM": 0.84
+        }
+      }
+    },
+    {
+      "exerciseId": "plank",
+      "file": "plank.glb",
+      "bytes": 78164,
+      "sha256": "447aaab7659f428ae9710edc7603bf6c319e8adfbc198701489c605a5e92a606",
+      "method": "hand-keyframed",
+      "durationSeconds": 3,
+      "clipName": "Plank",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 91,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.015,
+        "headYRangeM": 0.002,
+        "kneeZRangeM": 0.004,
+        "ankleYRangeM": 0,
+        "handYRangeM": 0,
+        "hipsYMinM": 0.535,
+        "hipsYMaxM": 0.55
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.015,
+          "headYRangeM": 0.002,
+          "ankleYRangeM": 0,
+          "handYRangeM": 0
+        }
+      }
+    },
+    {
+      "exerciseId": "crunch",
+      "file": "crunch.glb",
+      "bytes": 68260,
+      "sha256": "f1693699835f85b31369fe985620cecb94f5bb4d0c7b43e049b54be8a9c8878c",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.4,
+      "clipName": "Crunch",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 73,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0,
+        "headYRangeM": 0.146,
+        "kneeZRangeM": 0,
+        "ankleYRangeM": 0,
+        "handYRangeM": 0.071,
+        "hipsYMinM": 0.1,
+        "hipsYMaxM": 0.1
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0,
+          "headYRangeM": 0.146,
+          "ankleYRangeM": 0,
+          "handYRangeM": 0.071
+        }
+      }
+    },
+    {
+      "exerciseId": "leg-extension",
+      "file": "leg-extension.glb",
+      "bytes": 68280,
+      "sha256": "786fc461b1b79959f581444630e268587e442cdbfa7835f0fbab44390bbad4a0",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.4,
+      "clipName": "LegExtension",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 73,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0,
+        "headYRangeM": 0,
+        "kneeZRangeM": 0.046,
+        "ankleYRangeM": 0.396,
+        "handYRangeM": 0,
+        "hipsYMinM": 0.52,
+        "hipsYMaxM": 0.52
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0,
+          "headYRangeM": 0,
+          "ankleYRangeM": 0.396,
+          "handYRangeM": 0
+        }
+      }
+    },
+    {
+      "exerciseId": "lying-leg-curl",
+      "file": "lying-leg-curl.glb",
+      "bytes": 68296,
+      "sha256": "958dc345bd581c9e5ba779a1c299cd0676ede901e18d9fa6c3c93fa912d7adc8",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.4,
+      "clipName": "LyingLegCurl",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 73,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0,
+        "headYRangeM": 0,
+        "kneeZRangeM": 0.03,
+        "ankleYRangeM": 0.45,
+        "handYRangeM": 0,
+        "hipsYMinM": 0.1,
+        "hipsYMaxM": 0.1
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0,
+          "headYRangeM": 0,
+          "ankleYRangeM": 0.45,
+          "handYRangeM": 0
+        }
+      }
+    },
+    {
+      "exerciseId": "standing-calf-raise",
+      "file": "standing-calf-raise.glb",
+      "bytes": 60896,
+      "sha256": "f2dff5b743b37f42c39b9ccb76c6bc069879d9ca0cff9ea5b1c3fc2a1e395fe2",
+      "method": "hand-keyframed",
+      "durationSeconds": 2,
+      "clipName": "StandingCalfRaise",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 61,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.068,
+        "headYRangeM": 0.068,
+        "kneeZRangeM": 0.068,
+        "ankleYRangeM": 0.069,
+        "handYRangeM": 0.068,
+        "hipsYMinM": 0.917,
+        "hipsYMaxM": 0.985
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.068,
+          "headYRangeM": 0.068,
+          "ankleYRangeM": 0.069,
+          "handYRangeM": 0.068
+        }
+      }
+    },
+    {
+      "exerciseId": "glute-bridge",
+      "file": "glute-bridge.glb",
+      "bytes": 68260,
+      "sha256": "1c98778a8a586f40ba2a5e13e6090dbafb2f565f581118079a5abdfb6524e9b6",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.4,
+      "clipName": "GluteBridge",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 73,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.4,
+        "headYRangeM": 0.106,
+        "kneeZRangeM": 0.156,
+        "ankleYRangeM": 0,
+        "handYRangeM": 0,
+        "hipsYMinM": 0.1,
+        "hipsYMaxM": 0.5
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.4,
+          "headYRangeM": 0.106,
+          "ankleYRangeM": 0,
+          "handYRangeM": 0
+        }
+      }
+    },
+    {
+      "exerciseId": "leg-raise",
+      "file": "leg-raise.glb",
+      "bytes": 71752,
+      "sha256": "f3c0e205872e4285d635ebd2c837ea28accc0aba26f252eed1011b1e5297585b",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.6,
+      "clipName": "LegRaise",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 79,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0,
+        "headYRangeM": 0.114,
+        "kneeZRangeM": 0.299,
+        "ankleYRangeM": 0.843,
+        "handYRangeM": 0,
+        "hipsYMinM": 0.1,
+        "hipsYMaxM": 0.1
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0,
+          "headYRangeM": 0.114,
+          "ankleYRangeM": 0.843,
+          "handYRangeM": 0
+        }
+      }
+    },
+    {
+      "exerciseId": "bicycle-crunch",
+      "file": "bicycle-crunch.glb",
+      "bytes": 78624,
+      "sha256": "ab37ceea7416863255e6636a9746562fbdbf69fb29918a4ec8a7fa1c9d83d78c",
+      "method": "hand-keyframed",
+      "durationSeconds": 3,
+      "clipName": "BicycleCrunch",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 91,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0,
+        "headYRangeM": 0.028,
+        "kneeZRangeM": 0.248,
+        "ankleYRangeM": 0.13,
+        "handYRangeM": 0.033,
+        "hipsYMinM": 0.1,
+        "hipsYMaxM": 0.1
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0,
+          "headYRangeM": 0.028,
+          "ankleYRangeM": 0.13,
+          "handYRangeM": 0.033
+        }
+      }
+    },
+    {
+      "exerciseId": "russian-twist",
+      "file": "russian-twist.glb",
+      "bytes": 75628,
+      "sha256": "c0a8bbf83c459688ed4d40594ac4d2b7e06cc53345db0a47aaf63a6aea4f9249",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.8,
+      "clipName": "RussianTwist",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 85,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0,
+        "headYRangeM": 0,
+        "kneeZRangeM": 0.027,
+        "ankleYRangeM": 0,
+        "handYRangeM": 0.007,
+        "hipsYMinM": 0.5,
+        "hipsYMaxM": 0.5
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0,
+          "headYRangeM": 0.001,
+          "ankleYRangeM": 0,
+          "handYRangeM": 0.007
+        }
+      }
+    },
+    {
+      "exerciseId": "mountain-climber",
+      "file": "mountain-climber.glb",
+      "bytes": 68300,
+      "sha256": "84448b55cde818fa971d0cd5bb056bf353eeba0dbd27daa755ff2cfc688ba5a3",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.4,
+      "clipName": "MountainClimber",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 73,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0,
+        "headYRangeM": 0,
+        "kneeZRangeM": 0.77,
+        "ankleYRangeM": 0.112,
+        "handYRangeM": 0,
+        "hipsYMinM": 0.55,
+        "hipsYMaxM": 0.55
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0,
+          "headYRangeM": 0,
+          "ankleYRangeM": 0.112,
+          "handYRangeM": 0
+        }
+      }
+    },
+    {
+      "exerciseId": "jumping-jacks",
+      "file": "jumping-jacks.glb",
+      "bytes": 60840,
+      "sha256": "fe0a4614f81ccd427a3646b596e758b8dba41ea7d8dc62d5037520ea230f6e6b",
+      "method": "hand-keyframed",
+      "durationSeconds": 2,
+      "clipName": "JumpingJacks",
+      "trackCount": 29,
+      "keyframeCountPerTrack": 61,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.083,
+        "headYRangeM": 0.083,
+        "kneeZRangeM": 0.104,
+        "ankleYRangeM": 0.176,
+        "handYRangeM": 1.03,
+        "hipsYMinM": 0.917,
+        "hipsYMaxM": 1
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.083,
+          "headYRangeM": 0.083,
+          "ankleYRangeM": 0.176,
+          "handYRangeM": 1.03
+        }
+      }
+    },
+    {
+      "exerciseId": "kettlebell-swing",
+      "file": "kettlebell-swing.glb",
+      "bytes": 116560,
+      "sha256": "116ba8c29e8eed1dac15252f3f5a2f219499f541b3073316cc5fa9b9a958ef52",
+      "method": "hand-keyframed",
+      "durationSeconds": 2.4,
+      "clipName": "KettlebellSwing",
+      "trackCount": 53,
+      "keyframeCountPerTrack": 73,
+      "loopMaxQuatDiff": 0,
+      "nodeTravel": {
+        "hipsYRangeM": 0.14,
+        "headYRangeM": 0.408,
+        "kneeZRangeM": 0.166,
+        "ankleYRangeM": 0,
+        "handYRangeM": 0.666,
+        "hipsYMinM": 0.78,
+        "hipsYMaxM": 0.92
+      },
+      "reachViolations": [],
+      "verification": {
+        "binds": true,
+        "framesRendered": 3,
+        "loopClosureMaxPosDiffM": 0,
+        "consoleErrors": [],
+        "allMeasurementsFinite": true,
+        "browserTravel": {
+          "hipsYRangeM": 0.016,
+          "headYRangeM": 0.068,
+          "ankleYRangeM": 0,
+          "handYRangeM": 0.356
+        }
+      }
+    }
+  ]
+}
