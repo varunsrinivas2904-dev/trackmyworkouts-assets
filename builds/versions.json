@@ -1,5 +1,5 @@
 {
-  "latest": 2,
+  "latest": 3,
   "live": 1,
   "versions": [
     {
@@ -13,6 +13,12 @@
       "label": "proof v2 \u2014 hero copy + orange ring",
       "timestamp": "2026-11-16T06:30:11.806799Z",
       "url": "https://varunsrinivas2904-dev.github.io/trackmyworkouts-assets/builds/v2/index.html"
+    },
+    {
+      "version": 3,
+      "label": "auto: Dashboard.tsx",
+      "timestamp": "2026-11-16T08:12:15.861787Z",
+      "url": "https://varunsrinivas2904-dev.github.io/trackmyworkouts-assets/builds/v3/index.html"
     }
   ]
 }
