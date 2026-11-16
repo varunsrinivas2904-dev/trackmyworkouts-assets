@@ -10,19 +10,25 @@
   same-origin iframe below; this page's header (badge + Update + Versions)
   always stays visible, so there is always a way back to the menu.
 
+  This page IS the web player: opened in any plain browser it lists the
+  versions and loads the selected one — no APK needed. The Android player
+  app is the same page as its server.url, plus the Capacitor bridge.
+
   Why an iframe (not top-level navigation + an injected button):
   - The loader page IS the Capacitor server.url, so Capacitor injects its
     bridge JS (window.Capacitor + the SQLite/Filesystem/Share plugins the
     player app registers) into it at document start — see Bridge.java
     loadWebView(): WebViewCompat.addDocumentStartJavaScript() with the
     server.url ORIGIN as the allowed origin (path stripped). The version
-    pages live on the SAME origin (cdn.jsdelivr.net), so the iframe
+    pages live on the SAME origin (the GitHub Pages site), so the iframe
     documents get the same bridge injection, and the loader can read the
     iframe DOM (same origin) to tell whether a version actually booted.
   - No build-script dependency: nothing has to be injected into version
     builds, so a version that fails to boot can't take the menu down with it.
-  - jsDelivr sends no X-Frame-Options / frame-ancestors header, so framing
-    is allowed (verified 2026-11-16 with curl -I).
+  - The host sends no X-Frame-Options / frame-ancestors header, so framing
+    is allowed (verified on jsDelivr 2026-11-16; re-check on Pages once the
+    site is enabled — if Pages ever sends frame-ancestors, the iframe
+    approach breaks and this needs revisiting).
   - localStorage is shared across loader + iframe (same origin), so the
     pending/lastGood bookkeeping below works across reloads.
 
@@ -144,7 +150,7 @@
       <p class="hint">Tap a version to load it. Loading an older version is the
         rollback. Nothing changes until you tap &mdash; this player never
         auto-updates. New versions can take a few minutes to appear here
-        because the CDN caches the manifest.</p>
+        because the host can take a few minutes to publish a new manifest.</p>
       <ul id="version-list"></ul>
     </div>
   </main>
@@ -218,9 +224,9 @@
   }
 
   function fetchManifest() {
-    // Cache-busted fetch. Note: jsDelivr edge-caches versions.json (up to
-    // ~12h s-maxage), so a brand-new push may not show up immediately; the
-    // "last checked" line makes that visible instead of silent.
+    // Cache-busted fetch. The host can take a few minutes to publish a new
+    // manifest after a push; the "last checked" line makes that visible
+    // instead of silent.
     var url = MANIFEST_URL + '?t=' + Date.now();
     return fetch(url, { cache: 'no-store' })
       .then(function (r) {
@@ -333,8 +339,16 @@
   //  (a) it postMessages {type:'iteration-player-alive'} (player-bar.js, if
   //      the build injects it), OR
   //  (b) same-origin DOM probe: its document has a populated #root (the
-  //      workout app mounts React into #root) or any substantial body content.
+  //      workout app mounts React into #root) or a
+  //      [data-iteration-player-alive] marker.
   // (b) needs no cooperation from the version build at all.
+  // Deliberately NOT counted: generic body text. A 404 error page, or a
+  // version bundle served as text/plain (source text in the body), both
+  // carry far more than 40 chars of body text — counting body text marked
+  // those broken pages alive and defeated the watchdog rollback
+  // (found 2026-11-16: a 404 page passed the old `innerText.length > 40`
+  // fallback). #root children is the only DOM signal that means "the app
+  // actually mounted".
   function probeAlive() {
     // First: make sure the iframe document is actually the attempted
     // version. While a navigation is in flight, contentDocument still
@@ -352,7 +366,6 @@
       var root = doc.getElementById('root');
       if (root && root.children.length > 0) return true;
       if (doc.querySelector('[data-iteration-player-alive]')) return true;
-      if (doc.body && doc.body.innerText && doc.body.innerText.trim().length > 40) return true;
     } catch (e) {
       // Cross-origin (shouldn't happen — same jsDelivr origin) or not ready.
     }
