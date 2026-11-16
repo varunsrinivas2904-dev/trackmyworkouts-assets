@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Iteration Player</title>
+<!--
+  Iteration Player — loader v1.
+  Hosted at builds/player/index.html. Loads the selected version build in a
+  same-origin iframe below; this page's header (badge + Update + Versions)
+  always stays visible, so there is always a way back to the menu.
+
+  Why an iframe (not top-level navigation + an injected button):
+  - The loader page IS the Capacitor server.url, so Capacitor injects its
+    bridge JS (window.Capacitor + the SQLite/Filesystem/Share plugins the
+    player app registers) into it at document start — see Bridge.java
+    loadWebView(): WebViewCompat.addDocumentStartJavaScript() with the
+    server.url ORIGIN as the allowed origin (path stripped). The version
+    pages live on the SAME origin (cdn.jsdelivr.net), so the iframe
+    documents get the same bridge injection, and the loader can read the
+    iframe DOM (same origin) to tell whether a version actually booted.
+  - No build-script dependency: nothing has to be injected into version
+    builds, so a version that fails to boot can't take the menu down with it.
+  - jsDelivr sends no X-Frame-Options / frame-ancestors header, so framing
+    is allowed (verified 2026-11-16 with curl -I).
+  - localStorage is shared across loader + iframe (same origin), so the
+    pending/lastGood bookkeeping below works across reloads.
+
+  Update policy (explicit): NEVER auto-switch. The loaded version is the
+  persisted selected version; a newer `latest` only reveals the Update
+  button. An update happens only when the user taps Update or picks a
+  version in the list. Rollback = picking an older version.
+
+  The manifest's `live` field (used by a separate shipped-web track) is
+  deliberately IGNORED here — the phone player keys off `latest` and the
+  persisted selection only.
+
+  localStorage keys (iterationPlayer.*):
+    selectedVersion   — version currently chosen (loaded on open)
+    lastGoodVersion   — last version that signalled alive
+    pendingVersion    — version whose boot is in progress / unconfirmed
+    pendingSince      — epoch ms the pending attempt started
+    cachedManifest    — last good manifest JSON (offline-open fallback)
+-->
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; display: flex; flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #fff; color: #111; overflow: hidden;
+  }
+  header {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
+    border-bottom: 1px solid #e5e5e5; background: #fff; z-index: 10;
+  }
+  header h1 { font-size: 16px; font-weight: 700; margin: 0; white-space: nowrap; }
+  .badge {
+    font-size: 13px; font-weight: 600; background: #f0f0f0; color: #111;
+    border-radius: 999px; padding: 4px 10px; white-space: nowrap;
+  }
+  .badge .ago { font-weight: 400; color: #666; }
+  .spacer { flex: 1; }
+  button {
+    font: inherit; font-size: 14px; font-weight: 600;
+    border: 1px solid #d4d4d4; background: #fff; color: #111;
+    border-radius: 999px; padding: 7px 14px; cursor: pointer;
+  }
+  button:active { background: #f0f0f0; }
+  button.primary { background: #007aff; border-color: #007aff; color: #fff; }
+  button.primary:active { background: #0062cc; }
+  button[hidden] { display: none; }
+  #notice {
+    flex: 0 0 auto; display: none; padding: 8px 12px; font-size: 13px;
+    background: #fff8e1; color: #7a5b00; border-bottom: 1px solid #f0dfa0;
+  }
+  #notice.show { display: block; }
+  #meta {
+    flex: 0 0 auto; padding: 5px 12px; font-size: 12px; color: #888;
+    border-bottom: 1px solid #eee; display: flex; gap: 12px; align-items: center;
+  }
+  #meta button { font-size: 12px; padding: 3px 10px; border-radius: 999px; }
+  main { flex: 1 1 auto; position: relative; min-height: 0; }
+  iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; background: #fff;
+  }
+  #stage-empty {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; color: #666; font-size: 15px; line-height: 1.5;
+  }
+  #stage-empty.show { display: flex; }
+  /* Version list sheet */
+  #sheet-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,.35);
+    display: none; z-index: 20;
+  }
+  #sheet-backdrop.show { display: block; }
+  #sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 21;
+    background: #fff; border-radius: 16px 16px 0 0; max-height: 70%;
+    display: none; flex-direction: column; box-shadow: 0 -4px 24px rgba(0,0,0,.2);
+  }
+  #sheet.show { display: flex; }
+  #sheet h2 { font-size: 15px; margin: 14px 16px 4px; }
+  #sheet .hint { font-size: 12px; color: #888; margin: 0 16px 8px; line-height: 1.4; }
+  #version-list { overflow-y: auto; list-style: none; margin: 0; padding: 0 8px 16px; }
+  #version-list li {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 8px; border-top: 1px solid #eee; cursor: pointer;
+  }
+  #version-list li .v { font-weight: 700; font-size: 15px; }
+  #version-list li .l { font-size: 13px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #version-list li .tag {
+    margin-left: auto; flex: 0 0 auto; font-size: 11px; font-weight: 700;
+    border-radius: 999px; padding: 3px 8px; background: #e8f1ff; color: #0062cc;
+  }
+  #version-list li .tag.good { background: #e6f4ea; color: #137333; }
+  #version-list li.current { background: #f7f7f7; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Iteration Player</h1>
+    <span class="badge" id="badge">v&ndash; &middot; <span class="ago">loading&hellip;</span></span>
+    <span class="spacer"></span>
+    <button id="update-btn" class="primary" hidden>Update</button>
+    <button id="versions-btn">Versions</button>
+  </header>
+  <div id="notice" role="status"></div>
+  <div id="meta">
+    <span id="last-checked">Manifest not checked yet</span>
+    <button id="refresh-btn" type="button">Refresh</button>
+    <span id="load-state"></span>
+  </div>
+  <main>
+    <iframe id="stage" title="Loaded version" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-pointer-lock"></iframe>
+    <div id="stage-empty"><p id="stage-empty-text">Loading&hellip;</p></div>
+    <div id="sheet-backdrop"></div>
+    <div id="sheet" role="dialog" aria-label="Versions">
+      <h2>Versions</h2>
+      <p class="hint">Tap a version to load it. Loading an older version is the
+        rollback. Nothing changes until you tap &mdash; this player never
+        auto-updates. New versions can take a few minutes to appear here
+        because the CDN caches the manifest.</p>
+      <ul id="version-list"></ul>
+    </div>
+  </main>
+
+<script>
+(function () {
+  'use strict';
+
+  var LS = 'iterationPlayer.';
+  var ALIVE_TIMEOUT_MS = 8000;
+  var MANIFEST_URL = '../versions.json'; // loader lives at builds/player/
+  var store = window.localStorage;
+
+  var els = {
+    badge: document.getElementById('badge'),
+    updateBtn: document.getElementById('update-btn'),
+    versionsBtn: document.getElementById('versions-btn'),
+    notice: document.getElementById('notice'),
+    lastChecked: document.getElementById('last-checked'),
+    refreshBtn: document.getElementById('refresh-btn'),
+    loadState: document.getElementById('load-state'),
+    stage: document.getElementById('stage'),
+    stageEmpty: document.getElementById('stage-empty'),
+    stageEmptyText: document.getElementById('stage-empty-text'),
+    backdrop: document.getElementById('sheet-backdrop'),
+    sheet: document.getElementById('sheet'),
+    versionList: document.getElementById('version-list'),
+  };
+
+  var manifest = null;          // last fetched (or cached) manifest
+  var selectedVersion = null;   // number
+  var watchdogTimer = null;
+  var alivePollTimer = null;
+  var aliveSignalled = false;
+  var attemptVersion = null;    // version currently being watched
+  var attemptUrl = null;        // URL of the document being watched
+
+  // ---------- storage helpers ----------
+  function lsGet(k) { try { return store.getItem(LS + k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { store.setItem(LS + k, v); } catch (e) { /* private mode */ } }
+  function lsDel(k) { try { store.removeItem(LS + k); } catch (e) { /* ignore */ } }
+  function num(v) { var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+
+  // ---------- time formatting ----------
+  function relTime(iso) {
+    if (!iso) return '';
+    var t = Date.parse(iso);
+    if (isNaN(t)) return '';
+    var s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (s < 60) return s + 's ago';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + ' min ago';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
+  }
+  function clockTime(d) {
+    d = d || new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  // ---------- manifest ----------
+  function manifestVersions() {
+    if (!manifest || !Array.isArray(manifest.versions)) return [];
+    return manifest.versions.slice().sort(function (a, b) { return b.version - a.version; });
+  }
+  function versionEntry(v) {
+    var list = manifestVersions();
+    for (var i = 0; i < list.length; i++) if (list[i].version === v) return list[i];
+    return null;
+  }
+
+  function fetchManifest() {
+    // Cache-busted fetch. Note: jsDelivr edge-caches versions.json (up to
+    // ~12h s-maxage), so a brand-new push may not show up immediately; the
+    // "last checked" line makes that visible instead of silent.
+    var url = MANIFEST_URL + '?t=' + Date.now();
+    return fetch(url, { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (json) {
+        if (!json || typeof json.latest !== 'number' || !Array.isArray(json.versions)) {
+          throw new Error('Bad manifest shape');
+        }
+        // NOTE: json.live is intentionally ignored (separate shipped-web track).
+        manifest = json;
+        lsSet('cachedManifest', JSON.stringify(json));
+        els.lastChecked.textContent = 'Manifest checked ' + clockTime();
+        return json;
+      })
+      .catch(function (err) {
+        // Fall back to the cached manifest so a flaky network doesn't brick
+        // the player; the version list / badge then show the cached data.
+        var cached = lsGet('cachedManifest');
+        if (cached) {
+          try {
+            manifest = JSON.parse(cached);
+            els.lastChecked.textContent = 'Offline — showing cached manifest (' + clockTime() + ')';
+            return manifest;
+          } catch (e) { /* fall through */ }
+        }
+        els.lastChecked.textContent = 'Manifest failed to load — ' + err.message;
+        throw err;
+      });
+  }
+
+  // ---------- UI ----------
+  function showNotice(text) {
+    els.notice.textContent = text;
+    els.notice.classList.add('show');
+  }
+  function hideNotice() { els.notice.classList.remove('show'); }
+
+  function renderChrome() {
+    var entry = selectedVersion != null ? versionEntry(selectedVersion) : null;
+    var ago = entry && entry.timestamp ? relTime(entry.timestamp) : '';
+    els.badge.innerHTML = 'v' + (selectedVersion != null ? selectedVersion : '–') +
+      (ago ? ' &middot; <span class="ago">' + ago + '</span>' : '');
+    var latest = manifest ? manifest.latest : null;
+    var showUpdate = latest != null && selectedVersion != null && latest > selectedVersion;
+    els.updateBtn.hidden = !showUpdate;
+    els.updateBtn.textContent = showUpdate ? 'Update to v' + latest : 'Update';
+    renderList();
+  }
+
+  function renderList() {
+    var list = manifestVersions();
+    var lastGood = num(lsGet('lastGoodVersion'));
+    els.versionList.innerHTML = '';
+    if (!list.length) {
+      var li = document.createElement('li');
+      li.textContent = 'No versions in the manifest yet.';
+      li.style.cursor = 'default';
+      els.versionList.appendChild(li);
+      return;
+    }
+    list.forEach(function (entry) {
+      var item = document.createElement('li');
+      if (entry.version === selectedVersion) item.classList.add('current');
+      var v = document.createElement('span');
+      v.className = 'v';
+      v.textContent = 'v' + entry.version;
+      var l = document.createElement('span');
+      l.className = 'l';
+      l.textContent = (entry.label || '') + (entry.timestamp ? ' · ' + relTime(entry.timestamp) : '');
+      item.appendChild(v);
+      item.appendChild(l);
+      if (entry.version === selectedVersion) {
+        var cur = document.createElement('span');
+        cur.className = 'tag';
+        cur.textContent = 'current';
+        item.appendChild(cur);
+      } else if (entry.version === lastGood) {
+        var good = document.createElement('span');
+        good.className = 'tag good';
+        good.textContent = 'last good';
+        item.appendChild(good);
+      }
+      item.addEventListener('click', function () {
+        closeSheet();
+        selectVersion(entry.version);
+      });
+      els.versionList.appendChild(item);
+    });
+  }
+
+  function openSheet() {
+    renderList();
+    els.sheet.classList.add('show');
+    els.backdrop.classList.add('show');
+  }
+  function closeSheet() {
+    els.sheet.classList.remove('show');
+    els.backdrop.classList.remove('show');
+  }
+
+  // ---------- loading + alive watchdog ----------
+  function stopWatchdog() {
+    if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
+    if (alivePollTimer) { clearInterval(alivePollTimer); alivePollTimer = null; }
+  }
+
+  // A version counts as alive when EITHER:
+  //  (a) it postMessages {type:'iteration-player-alive'} (player-bar.js, if
+  //      the build injects it), OR
+  //  (b) same-origin DOM probe: its document has a populated #root (the
+  //      workout app mounts React into #root) or any substantial body content.
+  // (b) needs no cooperation from the version build at all.
+  function probeAlive() {
+    // First: make sure the iframe document is actually the attempted
+    // version. While a navigation is in flight, contentDocument still
+    // shows the PREVIOUS version's DOM — without this check a fast
+    // previous version would falsely mark a broken new version alive.
+    try {
+      var href = els.stage.contentWindow.location.href;
+      if (!attemptUrl || href.split('#')[0] !== attemptUrl.split('#')[0]) return false;
+    } catch (e) {
+      return false; // not same-origin / not ready yet
+    }
+    try {
+      var doc = els.stage.contentDocument;
+      if (!doc) return false;
+      var root = doc.getElementById('root');
+      if (root && root.children.length > 0) return true;
+      if (doc.querySelector('[data-iteration-player-alive]')) return true;
+      if (doc.body && doc.body.innerText && doc.body.innerText.trim().length > 40) return true;
+    } catch (e) {
+      // Cross-origin (shouldn't happen — same jsDelivr origin) or not ready.
+    }
+    return false;
+  }
+
+  function markAlive(version) {
+    if (aliveSignalled || version !== attemptVersion) return;
+    aliveSignalled = true;
+    stopWatchdog();
+    lsSet('lastGoodVersion', String(version));
+    if (lsGet('pendingVersion') === String(version)) lsDel('pendingVersion');
+    lsDel('pendingSince');
+    els.loadState.textContent = 'v' + version + ' running';
+    renderChrome();
+  }
+
+  function onAliveTimeout(version) {
+    // Version never signalled alive within the window: roll back.
+    stopWatchdog();
+    var lastGood = num(lsGet('lastGoodVersion'));
+    lsDel('pendingVersion');
+    lsDel('pendingSince');
+    if (lastGood != null && lastGood !== version) {
+      selectedVersion = lastGood;
+      lsSet('selectedVersion', String(lastGood));
+      showNotice('v' + version + ' didn\u2019t start \u2014 back on v' + lastGood + '.');
+      renderChrome();
+      loadVersion(lastGood, /* isRollback */ true);
+    } else {
+      // Nothing good to fall back to: stay on the failed version's page so
+      // the failure is visible, and say so.
+      els.stageEmptyText.textContent = 'v' + version + ' didn\u2019t start and there is no earlier good version to fall back to. Check the version list.';
+      els.stageEmpty.classList.add('show');
+      els.loadState.textContent = 'v' + version + ' failed to start';
+    }
+  }
+
+  function loadVersion(version, isRollback, timeoutMs) {
+    var entry = versionEntry(version);
+    if (!entry || !entry.url) {
+      els.stageEmptyText.textContent = 'v' + version + ' has no URL in the manifest.';
+      els.stageEmpty.classList.add('show');
+      return;
+    }
+    stopWatchdog();
+    attemptVersion = version;
+    attemptUrl = entry.url;
+    aliveSignalled = false;
+    els.stageEmpty.classList.remove('show');
+    els.loadState.textContent = isRollback ? ('Rolling back to v' + version + '…') : ('Loading v' + version + '…');
+    els.stage.src = entry.url;
+    // Poll for a boot signal; the 8s watchdog fires the rollback.
+    alivePollTimer = setInterval(function () {
+      if (probeAlive()) markAlive(version);
+    }, 250);
+    watchdogTimer = setTimeout(function () {
+      if (!aliveSignalled) onAliveTimeout(version);
+    }, timeoutMs || ALIVE_TIMEOUT_MS);
+  }
+
+  function selectVersion(version) {
+    if (version === selectedVersion && attemptVersion === version && aliveSignalled) return;
+    hideNotice();
+    selectedVersion = version;
+    lsSet('selectedVersion', String(version));
+    lsSet('pendingVersion', String(version));
+    lsSet('pendingSince', String(Date.now()));
+    renderChrome();
+    loadVersion(version, false);
+  }
+
+  // ---------- boot ----------
+  function init() {
+    var storedSelected = num(lsGet('selectedVersion'));
+    var lastGood = num(lsGet('lastGoodVersion'));
+    var pending = num(lsGet('pendingVersion'));
+    var pendingSince = num(lsGet('pendingSince'));
+
+    // A leftover pendingVersion means a previous attempt never signalled
+    // alive (app killed mid-load, or the version never booted). Resolve it
+    // BEFORE loading anything: if the attempt is still inside its 8s window
+    // (loader reloaded quickly), give it the remainder; otherwise roll back
+    // to lastGood now and say so.
+    var pendingIsStale = false;
+    var pendingRemainder = 0;
+    if (pending != null) {
+      var age = pendingSince != null ? Date.now() - pendingSince : Infinity;
+      if (age >= ALIVE_TIMEOUT_MS) {
+        pendingIsStale = true;
+      } else {
+        pendingRemainder = ALIVE_TIMEOUT_MS - age;
+      }
+    }
+
+    fetchManifest()
+      .then(function () {
+        var latest = manifest.latest;
+        var known = function (v) { return v != null && versionEntry(v) != null; };
+
+        var loadingStarted = false;
+        if (pendingIsStale) {
+          lsDel('pendingVersion');
+          lsDel('pendingSince');
+          if (lastGood != null && known(lastGood)) {
+            selectedVersion = lastGood;
+            lsSet('selectedVersion', String(lastGood));
+            showNotice('v' + pending + ' didn\u2019t start \u2014 back on v' + lastGood + '.');
+          } else {
+            selectedVersion = latest;
+            lsSet('selectedVersion', String(latest));
+            showNotice('v' + pending + ' didn\u2019t start. Loaded the latest version instead.');
+          }
+        } else if (storedSelected != null && known(storedSelected)) {
+          // Normal open: keep the persisted selection. NEVER auto-switch to
+          // latest — the Update button is the only path to a newer version.
+          selectedVersion = storedSelected;
+          if (pending != null && pending === storedSelected) {
+            // Attempt still inside its window: keep watching it from here,
+            // with only the remainder of the 8s window left.
+            loadVersion(pending, false, pendingRemainder);
+            loadingStarted = true;
+          } else if (pending != null) {
+            // Orphaned pending for a different version: abandon it.
+            lsDel('pendingVersion');
+            lsDel('pendingSince');
+          }
+        } else {
+          // First run (or the stored version vanished from the manifest):
+          // latest becomes the selection.
+          selectedVersion = latest;
+          lsSet('selectedVersion', String(latest));
+        }
+
+        renderChrome();
+        if (!loadingStarted) loadVersion(selectedVersion, false);
+      })
+      .catch(function () {
+        // No manifest and no cache: we can still try the stored selection
+        // only if we know its URL — we don't, so show the error state.
+        els.stageEmptyText.textContent = 'Couldn\u2019t load the version list. Check the connection and tap Refresh.';
+        els.stageEmpty.classList.add('show');
+        renderChrome();
+      });
+
+    // A version (or an injected player-bar snippet) may announce itself.
+    window.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (d && (d.type === 'iteration-player-alive' || d === 'iteration-player-alive')) {
+        var v = (d && d.version != null) ? num(d.version) : attemptVersion;
+        if (v != null) markAlive(v);
+      }
+      if (d && d.type === 'iteration-player-show-menu') openSheet();
+    });
+
+    els.updateBtn.addEventListener('click', function () {
+      if (manifest) selectVersion(manifest.latest);
+    });
+    els.versionsBtn.addEventListener('click', openSheet);
+    els.backdrop.addEventListener('click', closeSheet);
+    els.refreshBtn.addEventListener('click', function () {
+      fetchManifest().then(function () { renderChrome(); }).catch(function () { renderChrome(); });
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
