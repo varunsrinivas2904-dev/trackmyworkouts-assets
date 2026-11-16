@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Track My Workouts — Iteration Dashboard</title>
+<!--
+  Iteration Dashboard — read-only status page for the rapid-iteration tool.
+  Hosted at builds/dashboard/index.html. Reads three JSON files next to it:
+    ../versions.json        — {latest, live, versions:[{version,label,timestamp,url}]}
+    ../watcher-status.json  — {state:'watching'|'error'|'stopped', lastSeen, lastVersion, lastPushAt, error?}
+    ../push-log.json        — [{version,label,timestamp,filesChanged[],status,durationMs,error?}]
+  watcher-status.json and push-log.json may not exist yet (the watcher
+  publishes them); every section degrades to an honest empty state instead
+  of a blank page or an error. This page never writes anything and holds no
+  credentials — it cannot change which version is live. To change live, run:
+    python3 ~/workspace/custom-connectors/custom.github-trackmyworkouts/bin/push_build.py set-live <v>
+-->
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #f5f5f7; color: #111;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  header p { margin: 0; font-size: 16px; color: #444; }
+  .meta-line {
+    display: flex; align-items: center; gap: 12px; margin-top: 12px;
+    font-size: 13px; color: #888;
+  }
+  .meta-line button {
+    font: inherit; font-size: 13px; font-weight: 600;
+    border: 1px solid #d4d4d4; background: #fff; color: #111;
+    border-radius: 999px; padding: 4px 12px; cursor: pointer;
+  }
+  .meta-line button:active { background: #f0f0f0; }
+  section.card {
+    background: #fff; border: 1px solid #e5e5e5; border-radius: 14px;
+    padding: 18px 20px; margin-bottom: 16px;
+  }
+  section.card h2 { font-size: 15px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
+  .empty { color: #888; font-size: 14px; margin: 4px 0; }
+  .error-banner {
+    display: none; background: #fdecea; color: #8a1a12; border: 1px solid #f5c6c0;
+    border-radius: 12px; padding: 12px 16px; font-size: 14px; margin-bottom: 16px;
+  }
+  .error-banner.show { display: block; }
+
+  /* Status card */
+  .status-row { display: flex; align-items: center; gap: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
+  .dot.green { background: #34a853; }
+  .dot.red { background: #d93025; }
+  .dot.grey { background: #9aa0a6; }
+  .status-word { font-size: 20px; font-weight: 700; }
+  .status-word.green { color: #137333; }
+  .status-word.red { color: #a50e0e; }
+  .status-word.grey { color: #5f6368; }
+  .status-detail { font-size: 14px; color: #444; margin: 8px 0 0; }
+  .status-detail .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+
+  /* Live badges */
+  .badges { display: flex; flex-wrap: wrap; gap: 12px; }
+  .badge-box { flex: 1 1 220px; background: #f5f5f7; border-radius: 10px; padding: 12px 14px; }
+  .badge-box .k { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
+  .badge-box .v { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .badge-box .v .tag-live {
+    font-size: 11px; font-weight: 700; vertical-align: middle;
+    background: #e6f4ea; color: #137333; border-radius: 999px; padding: 2px 8px; margin-left: 6px;
+  }
+  .badge-box .t { font-size: 13px; color: #666; margin-top: 2px; }
+
+  /* Lists */
+  ul.rows { list-style: none; margin: 0; padding: 0; }
+  ul.rows li { padding: 12px 0; border-top: 1px solid #eee; }
+  ul.rows li:first-child { border-top: 0; padding-top: 2px; }
+  .row-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .row-top .vn { font-weight: 700; font-size: 16px; }
+  .row-top .lbl { font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .row-top .ts { font-size: 13px; color: #888; margin-left: auto; white-space: nowrap; }
+  .row-links { margin-top: 4px; font-size: 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .row-links a { color: #0062cc; text-decoration: none; }
+  .row-links a:hover { text-decoration: underline; }
+  .pill {
+    font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; white-space: nowrap;
+  }
+  .pill.latest { background: #e8f1ff; color: #0062cc; }
+  .pill.live { background: #e6f4ea; color: #137333; }
+  .pill.ok { background: #e6f4ea; color: #137333; }
+  .pill.failed { background: #fdecea; color: #a50e0e; }
+  .files { font-size: 13px; color: #555; margin: 6px 0 0; word-break: break-word; }
+  .files code, code.inline {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; background: #f5f5f7; border-radius: 4px; padding: 1px 5px;
+  }
+  .push-meta { font-size: 13px; color: #888; margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .push-error { font-size: 13px; color: #a50e0e; margin-top: 4px; }
+
+  /* Setup */
+  ol.steps { margin: 0; padding-left: 22px; }
+  ol.steps li { margin-bottom: 10px; font-size: 15px; }
+  ol.steps li:last-child { margin-bottom: 0; }
+  ol.steps code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px; background: #f5f5f7; border-radius: 4px; padding: 1px 5px;
+    word-break: break-all;
+  }
+  .setup-links { margin-top: 14px; padding-top: 12px; border-top: 1px solid #eee; font-size: 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .setup-links a, section.card a { color: #0062cc; text-decoration: none; }
+  .setup-links a:hover, section.card a:hover { text-decoration: underline; }
+  pre.cmd {
+    background: #111; color: #eee; border-radius: 8px; padding: 10px 12px;
+    font-size: 12.5px; overflow-x: auto; margin: 10px 0 0; white-space: pre-wrap; word-break: break-all;
+  }
+  .note { font-size: 13px; color: #666; margin: 10px 0 0; }
+
+  footer { font-size: 13px; color: #888; text-align: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Track My Workouts</h1>
+    <p>Edit code, it goes live on your phone. Pick any older version to go back.</p>
+    <div class="meta-line">
+      <span id="last-checked">Checking status&hellip;</span>
+      <button id="refresh-btn" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <div class="error-banner" id="manifest-error" role="alert"></div>
+
+  <section class="card" aria-label="Watcher status">
+    <h2>Watcher</h2>
+    <div class="status-row">
+      <span class="dot grey" id="status-dot"></span>
+      <span class="status-word grey" id="status-word">Checking&hellip;</span>
+    </div>
+    <p class="status-detail" id="status-detail"></p>
+  </section>
+
+  <section class="card" aria-label="Live version">
+    <h2>Live version</h2>
+    <div class="badges">
+      <div class="badge-box">
+        <div class="k">Latest build</div>
+        <div class="v" id="latest-badge">v&ndash;</div>
+        <div class="t" id="latest-time"></div>
+      </div>
+      <div class="badge-box">
+        <div class="k">Live &mdash; what the production link serves</div>
+        <div class="v" id="live-badge">v&ndash;</div>
+        <div class="t" id="live-time"></div>
+      </div>
+    </div>
+    <p class="note">Publishing a new version never changes what&rsquo;s live.
+      This page can&rsquo;t change it either &mdash; it holds no credentials.
+      To move production to a version, run:</p>
+    <pre class="cmd">python3 ~/workspace/custom-connectors/custom.github-trackmyworkouts/bin/push_build.py set-live &lt;v&gt;</pre>
+  </section>
+
+  <section class="card" aria-label="Version history">
+    <h2>Version history</h2>
+    <ul class="rows" id="version-list"></ul>
+    <p class="empty" id="version-empty" style="display:none">No versions published yet.</p>
+  </section>
+
+  <section class="card" aria-label="Push log">
+    <h2>Push log</h2>
+    <ul class="rows" id="push-list"></ul>
+    <p class="empty" id="push-empty">No pushes yet &mdash; save a code change and one appears here.</p>
+  </section>
+
+  <section class="card" aria-label="Setup">
+    <h2>Get set up</h2>
+    <ol class="steps">
+      <li>Install the player app once on your phone:
+        <a id="apk-link" href="https://github.com/varunsrinivas2904-dev/trackmyworkouts-assets">iteration-player-v0.2-debug.apk</a>
+        <br /><span style="font-size:13px;color:#666">The APK isn&rsquo;t hosted on this site yet &mdash; install it from the file shared with you, then it just works.</span></li>
+      <li>Start the watcher with one command:
+        <br /><code>~/workspace/rapid-iteration/watch.sh start</code>
+        <br /><span style="font-size:13px;color:#666">If the computer restarts, run it again.</span></li>
+      <li>Edit code, save, and watch it go live. Every save becomes a new version here &mdash; and on your phone.</li>
+    </ol>
+    <div class="setup-links">
+      <a href="../player/index.html">Open the web player</a>
+      <a href="../index.html">Open the live version</a>
+    </div>
+  </section>
+
+  <footer>Testing only. UI changes go live; native changes need a rebuild. Rollback is clean for UI-only changes.</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var FRESH_MS = 5 * 60 * 1000; // watcher heartbeat is fresh within 5 minutes
+  var PLAYER_URL = '../player/index.html';
+  var LIVE_URL = '../index.html';
+
+  var els = {
+    lastChecked: document.getElementById('last-checked'),
+    refreshBtn: document.getElementById('refresh-btn'),
+    manifestError: document.getElementById('manifest-error'),
+    dot: document.getElementById('status-dot'),
+    word: document.getElementById('status-word'),
+    detail: document.getElementById('status-detail'),
+    latestBadge: document.getElementById('latest-badge'),
+    latestTime: document.getElementById('latest-time'),
+    liveBadge: document.getElementById('live-badge'),
+    liveTime: document.getElementById('live-time'),
+    versionList: document.getElementById('version-list'),
+    versionEmpty: document.getElementById('version-empty'),
+    pushList: document.getElementById('push-list'),
+    pushEmpty: document.getElementById('push-empty'),
+  };
+
+  // ---------- time ----------
+  function relTime(iso) {
+    if (!iso) return '';
+    var t = Date.parse(iso);
+    if (isNaN(t)) return '';
+    var s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (s < 60) return s + 's ago';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + ' min ago';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
+  }
+  function fullTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  }
+  function clockTime(d) {
+    return (d || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // ---------- fetching (each file optional; a 404 is an empty state, not an error) ----------
+  function fetchJson(relPath) {
+    return fetch(relPath + '?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) {
+        if (r.status === 404) return null; // not published yet
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .catch(function (err) {
+        if (err && err.message && err.message.indexOf('HTTP 404') === 0) return null;
+        throw err;
+      });
+  }
+  function fetchOptional(relPath) {
+    // fetchJson returns null on 404; any other failure also degrades to null
+    // for the optional files so the page never blanks.
+    return fetchJson(relPath).catch(function () { return null; });
+  }
+
+  // ---------- status card ----------
+  function renderStatus(status) {
+    var word = 'OFFLINE', cls = 'grey', detail = '';
+    if (!status) {
+      detail = 'No heartbeat yet &mdash; the watcher hasn&rsquo;t reported in. ' +
+        'If you just started it, this updates within a minute.';
+    } else {
+      var lastSeen = status.lastSeen || status.lastHeartbeat || null;
+      var lastSeenMs = lastSeen ? Date.parse(lastSeen) : NaN;
+      var fresh = !isNaN(lastSeenMs) && (Date.now() - lastSeenMs) < FRESH_MS;
+      var state = (status.state || '').toLowerCase();
+      var errText = status.error || status.lastError || status.message || '';
+      var lastVersion = status.lastVersion != null ? status.lastVersion
+        : (status.lastPushVersion != null ? status.lastPushVersion : null);
+      if (state === 'error') {
+        word = 'ERROR'; cls = 'red';
+        detail = 'The watcher reported an error' +
+          (lastSeen ? ' &mdash; last seen ' + fullTime(lastSeen) + ' (' + relTime(lastSeen) + ')' : '') + '.' +
+          (errText ? ' <span class="mono">' + esc(errText) + '</span>' : '');
+      } else if (state === 'watching' && fresh) {
+        word = 'WATCHING'; cls = 'green';
+        detail = 'Watching for code changes' +
+          (lastSeen ? ' &mdash; last check-in ' + relTime(lastSeen) : '') +
+          (lastVersion != null ? ' &middot; last published v' + lastVersion : '') + '.';
+      } else if (state === 'stopped') {
+        word = 'OFFLINE'; cls = 'grey';
+        detail = 'The watcher is stopped' +
+          (lastSeen ? ' &mdash; last seen ' + fullTime(lastSeen) + ' (' + relTime(lastSeen) + ')' : ' &mdash; never seen') +
+          (lastVersion != null ? ' &middot; last published v' + lastVersion : '') + '. Start it again with watch.sh start.';
+      } else {
+        // watching but stale heartbeat, or unknown state
+        word = 'OFFLINE'; cls = 'grey';
+        detail = 'Heartbeat is stale' +
+          (lastSeen ? ' &mdash; last seen ' + fullTime(lastSeen) + ' (' + relTime(lastSeen) + ')' : ' &mdash; never seen') +
+          (lastVersion != null ? ' &middot; last published v' + lastVersion : '') +
+          '. The watcher may have stopped; start it again with watch.sh start.';
+      }
+    }
+    els.dot.className = 'dot ' + cls;
+    els.word.className = 'status-word ' + cls;
+    els.word.textContent = word;
+    els.detail.innerHTML = detail;
+  }
+
+  // ---------- versions ----------
+  function renderVersions(manifest) {
+    var latest = manifest && typeof manifest.latest === 'number' ? manifest.latest : null;
+    var live = manifest && typeof manifest.live === 'number' ? manifest.live : null;
+    var list = (manifest && Array.isArray(manifest.versions)) ? manifest.versions.slice() : [];
+    list.sort(function (a, b) { return b.version - a.version; });
+
+    function entryFor(v) {
+      for (var i = 0; i < list.length; i++) if (list[i].version === v) return list[i];
+      return null;
+    }
+    var latestEntry = latest != null ? entryFor(latest) : null;
+    var liveEntry = live != null && live !== 0 ? entryFor(live) : null;
+
+    els.latestBadge.innerHTML = latest != null
+      ? 'v' + latest + (latestEntry && latestEntry.label ? ' &mdash; ' + esc(latestEntry.label) : '')
+      : 'v&ndash;';
+    els.latestTime.textContent = latestEntry && latestEntry.timestamp
+      ? fullTime(latestEntry.timestamp) + ' (' + relTime(latestEntry.timestamp) + ')' : '';
+    els.liveBadge.innerHTML = (live != null && live !== 0)
+      ? 'v' + live + '<span class="tag-live">LIVE</span>' + (liveEntry && liveEntry.label ? ' &mdash; ' + esc(liveEntry.label) : '')
+      : 'No live version yet';
+    els.liveTime.textContent = liveEntry && liveEntry.timestamp
+      ? fullTime(liveEntry.timestamp) + ' (' + relTime(liveEntry.timestamp) + ')' : '';
+
+    els.versionList.innerHTML = '';
+    if (!list.length) {
+      els.versionEmpty.style.display = 'block';
+      return;
+    }
+    els.versionEmpty.style.display = 'none';
+    list.forEach(function (entry) {
+      var li = document.createElement('li');
+      var top = document.createElement('div');
+      top.className = 'row-top';
+      var vn = document.createElement('span');
+      vn.className = 'vn';
+      vn.textContent = 'v' + entry.version;
+      top.appendChild(vn);
+      if (entry.version === latest) {
+        var p1 = document.createElement('span');
+        p1.className = 'pill latest';
+        p1.textContent = 'latest';
+        top.appendChild(p1);
+      }
+      if (live !== 0 && entry.version === live) {
+        var p2 = document.createElement('span');
+        p2.className = 'pill live';
+        p2.textContent = 'live';
+        top.appendChild(p2);
+      }
+      var lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = entry.label || '';
+      lbl.title = entry.label || '';
+      top.appendChild(lbl);
+      var ts = document.createElement('span');
+      ts.className = 'ts';
+      ts.textContent = entry.timestamp ? fullTime(entry.timestamp) + ' (' + relTime(entry.timestamp) + ')' : '';
+      top.appendChild(ts);
+      li.appendChild(top);
+
+      var links = document.createElement('div');
+      links.className = 'row-links';
+      if (entry.url) {
+        var view = document.createElement('a');
+        view.href = entry.url;
+        view.textContent = 'View';
+        links.appendChild(view);
+      }
+      var player = document.createElement('a');
+      player.href = PLAYER_URL;
+      player.textContent = 'Player';
+      links.appendChild(player);
+      li.appendChild(links);
+      els.versionList.appendChild(li);
+    });
+  }
+
+  // ---------- push log ----------
+  function renderPushLog(log) {
+    var entries = Array.isArray(log) ? log.slice() : [];
+    entries.sort(function (a, b) {
+      var ta = Date.parse(a.timestamp || '') || 0;
+      var tb = Date.parse(b.timestamp || '') || 0;
+      return tb - ta;
+    });
+    els.pushList.innerHTML = '';
+    if (!entries.length) {
+      els.pushEmpty.style.display = 'block';
+      return;
+    }
+    els.pushEmpty.style.display = 'none';
+    entries.forEach(function (entry) {
+      var li = document.createElement('li');
+      var top = document.createElement('div');
+      top.className = 'row-top';
+      var vn = document.createElement('span');
+      vn.className = 'vn';
+      vn.textContent = 'v' + (entry.version != null ? entry.version : '?');
+      top.appendChild(vn);
+      var status = (entry.status || '').toLowerCase();
+      var pill = document.createElement('span');
+      pill.className = 'pill ' + (status === 'failed' || status === 'error' ? 'failed' : 'ok');
+      pill.textContent = status === 'failed' || status === 'error' ? 'failed' : 'ok';
+      top.appendChild(pill);
+      var lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = entry.label || '';
+      top.appendChild(lbl);
+      var ts = document.createElement('span');
+      ts.className = 'ts';
+      ts.textContent = entry.timestamp ? fullTime(entry.timestamp) + ' (' + relTime(entry.timestamp) + ')' : '';
+      top.appendChild(ts);
+      li.appendChild(top);
+
+      var meta = document.createElement('div');
+      meta.className = 'push-meta';
+      if (entry.durationMs != null) {
+        var d = document.createElement('span');
+        d.textContent = 'took ' + (entry.durationMs / 1000).toFixed(1) + 's';
+        meta.appendChild(d);
+      }
+      li.appendChild(meta);
+
+      if (Array.isArray(entry.filesChanged) && entry.filesChanged.length) {
+        var files = document.createElement('p');
+        files.className = 'files';
+        files.textContent = 'Changed: ';
+        entry.filesChanged.forEach(function (f, i) {
+          if (i) files.appendChild(document.createTextNode(', '));
+          var c = document.createElement('code');
+          c.textContent = f;
+          files.appendChild(c);
+        });
+        li.appendChild(files);
+      }
+      if (entry.error) {
+        var err = document.createElement('p');
+        err.className = 'push-error';
+        err.textContent = entry.error;
+        li.appendChild(err);
+      }
+      els.pushList.appendChild(li);
+    });
+  }
+
+  // ---------- load all ----------
+  function loadAll() {
+    els.lastChecked.textContent = 'Checking status…';
+    return Promise.all([
+      fetchJson('../versions.json'),
+      fetchOptional('../watcher-status.json'),
+      fetchOptional('../push-log.json'),
+    ]).then(function (results) {
+      var manifest = results[0];
+      var status = results[1];
+      var log = results[2];
+      els.manifestError.classList.remove('show');
+      els.manifestError.textContent = '';
+      renderStatus(status);
+      renderVersions(manifest);
+      renderPushLog(log);
+      els.lastChecked.textContent = 'Last checked ' + clockTime();
+    }).catch(function (err) {
+      // versions.json itself failed (not a 404 — a real fetch/network error).
+      els.manifestError.textContent = 'Couldn\u2019t load the version list (' + err.message +
+        '). Check the connection and tap Refresh.';
+      els.manifestError.classList.add('show');
+      renderStatus(null);
+      renderVersions(null);
+      renderPushLog(null);
+      els.lastChecked.textContent = 'Last checked ' + clockTime() + ' — version list failed';
+    });
+  }
+
+  els.refreshBtn.addEventListener('click', function () { loadAll(); });
+  loadAll();
+  setInterval(loadAll, 60000); // keep the status fresh while the page is open
+})();
+</script>
+</body>
+</html>
