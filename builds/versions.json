@@ -1,5 +1,5 @@
 {
-  "latest": 1,
+  "latest": 2,
   "live": 1,
   "versions": [
     {
@@ -7,6 +7,12 @@
       "label": "proof v1 \u2014 hero copy change",
       "timestamp": "2026-11-16T06:21:30.789096Z",
       "url": "https://cdn.jsdelivr.net/gh/varunsrinivas2904-dev/trackmyworkouts-assets@main/builds/v1/index.html"
+    },
+    {
+      "version": 2,
+      "label": "proof v2 \u2014 hero copy + orange ring",
+      "timestamp": "2026-11-16T06:30:11.806799Z",
+      "url": "https://cdn.jsdelivr.net/gh/varunsrinivas2904-dev/trackmyworkouts-assets@main/builds/v2/index.html"
     }
   ]
 }
