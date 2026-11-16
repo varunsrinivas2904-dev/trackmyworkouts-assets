@@ -1,5 +1,12 @@
 {
-  "latest": 0,
-  "live": 0,
-  "versions": []
+  "latest": 1,
+  "live": 1,
+  "versions": [
+    {
+      "version": 1,
+      "label": "proof v1 \u2014 hero copy change",
+      "timestamp": "2026-11-16T06:21:30.789096Z",
+      "url": "https://cdn.jsdelivr.net/gh/varunsrinivas2904-dev/trackmyworkouts-assets@main/builds/v1/index.html"
+    }
+  ]
 }
