@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Iteration Player</title>
 <!--
-  Iteration Player — loader v1.
+  Iteration Player — loader v2.
   Hosted at builds/player/index.html. Loads the selected version build in a
   same-origin iframe below; this page's header (badge + Update + Versions)
   always stays visible, so there is always a way back to the menu.
@@ -32,10 +32,18 @@
   - localStorage is shared across loader + iframe (same origin), so the
     pending/lastGood bookkeeping below works across reloads.
 
-  Update policy (explicit): NEVER auto-switch. The loaded version is the
-  persisted selected version; a newer `latest` only reveals the Update
-  button. An update happens only when the user taps Update or picks a
-  version in the list. Rollback = picking an older version.
+  Update policy (v2 — LIVE by default, PINNED on tap):
+  - LIVE (default, liveMode='1'): the loader loads the newest `latest`,
+    and polls versions.json every 5s; when a poll sees a newer `latest`
+    than the loaded version, it loads the new latest automatically —
+    no tap needed. This is the launched-app behaviour: edit code, push,
+    the phone follows.
+  - PINNED (liveMode='0'): the user tapped a version in the list. The
+    loader stays on that version and does NOT auto-advance, even when a
+    newer `latest` appears. A visible "Back to live" button unpins and
+    loads the newest latest.
+  - Rollback = picking an older version (which pins it). A watchdog
+    fallback also pins on the last good version.
 
   The manifest's `live` field (used by a separate shipped-web track) is
   deliberately IGNORED here — the phone player keys off `latest` and the
@@ -46,6 +54,8 @@
     lastGoodVersion   — last version that signalled alive
     pendingVersion    — version whose boot is in progress / unconfirmed
     pendingSince      — epoch ms the pending attempt started
+    liveMode          — '1' = LIVE (auto-advance to newest latest, default),
+                        '0' = PINNED (stay on the tapped version)
     cachedManifest    — last good manifest JSON (offline-open fallback)
 -->
 <style>
@@ -68,6 +78,12 @@
     border-radius: 999px; padding: 4px 10px; white-space: nowrap;
   }
   .badge .ago { font-weight: 400; color: #666; }
+  .mode-chip {
+    font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    border-radius: 999px; padding: 3px 8px; white-space: nowrap;
+  }
+  .mode-chip.live { background: #e6f4ea; color: #137333; }
+  .mode-chip.pinned { background: #fef3c7; color: #92400e; }
   .spacer { flex: 1; }
   button {
     font: inherit; font-size: 14px; font-weight: 600;
@@ -131,6 +147,7 @@
   <header>
     <h1>Iteration Player</h1>
     <span class="badge" id="badge">v&ndash; &middot; <span class="ago">loading&hellip;</span></span>
+    <span class="mode-chip live" id="mode-chip">LIVE</span>
     <span class="spacer"></span>
     <button id="update-btn" class="primary" hidden>Update</button>
     <button id="versions-btn">Versions</button>
@@ -147,10 +164,12 @@
     <div id="sheet-backdrop"></div>
     <div id="sheet" role="dialog" aria-label="Versions">
       <h2>Versions</h2>
-      <p class="hint">Tap a version to load it. Loading an older version is the
-        rollback. Nothing changes until you tap &mdash; this player never
-        auto-updates. New versions can take a few minutes to appear here
-        because the host can take a few minutes to publish a new manifest.</p>
+      <p class="hint">Live mode loads the newest version automatically
+        when it appears. Tap a version to pin it &mdash; a pinned version
+        never auto-updates. Tap &ldquo;Back to live&rdquo; to resume
+        automatic updates. Loading an older version is the rollback. New
+        versions can take a few minutes to appear here because the host
+        can take a few minutes to publish a new manifest.</p>
       <ul id="version-list"></ul>
     </div>
   </main>
@@ -166,6 +185,7 @@
 
   var els = {
     badge: document.getElementById('badge'),
+    modeChip: document.getElementById('mode-chip'),
     updateBtn: document.getElementById('update-btn'),
     versionsBtn: document.getElementById('versions-btn'),
     notice: document.getElementById('notice'),
@@ -184,6 +204,7 @@
   var selectedVersion = null;   // number
   var watchdogTimer = null;
   var alivePollTimer = null;
+  var pollTimer = null;         // 5s manifest poll (live auto-update)
   var aliveSignalled = false;
   var attemptVersion = null;    // version currently being watched
   var attemptUrl = null;        // URL of the document being watched
@@ -193,6 +214,10 @@
   function lsSet(k, v) { try { store.setItem(LS + k, v); } catch (e) { /* private mode */ } }
   function lsDel(k) { try { store.removeItem(LS + k); } catch (e) { /* ignore */ } }
   function num(v) { var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+
+  // LIVE (default) vs PINNED. Absent key = LIVE.
+  function isLive() { return lsGet('liveMode') !== '0'; }
+  function setLiveMode(live) { lsSet('liveMode', live ? '1' : '0'); }
 
   // ---------- time formatting ----------
   function relTime(iso) {
@@ -272,9 +297,17 @@
     els.badge.innerHTML = 'v' + (selectedVersion != null ? selectedVersion : '–') +
       (ago ? ' &middot; <span class="ago">' + ago + '</span>' : '');
     var latest = manifest ? manifest.latest : null;
-    var showUpdate = latest != null && selectedVersion != null && latest > selectedVersion;
+    var pinned = !isLive();
+    // PINNED: always show "Back to live" (the unpin control). LIVE: show
+    // "Update to vN" only while a newer latest is known but not yet loaded
+    // (transient — the poll normally auto-advances within 5s).
+    var showUpdate = latest != null && selectedVersion != null &&
+      (pinned || latest > selectedVersion);
     els.updateBtn.hidden = !showUpdate;
-    els.updateBtn.textContent = showUpdate ? 'Update to v' + latest : 'Update';
+    els.updateBtn.textContent = pinned ? 'Back to live' : ('Update to v' + latest);
+    els.modeChip.textContent = pinned ? 'PINNED' : 'LIVE';
+    els.modeChip.classList.toggle('live', !pinned);
+    els.modeChip.classList.toggle('pinned', pinned);
     renderList();
   }
 
@@ -313,7 +346,7 @@
       }
       item.addEventListener('click', function () {
         closeSheet();
-        selectVersion(entry.version);
+        selectVersion(entry.version, /* pin */ true);
       });
       els.versionList.appendChild(item);
     });
@@ -392,6 +425,7 @@
     if (lastGood != null && lastGood !== version) {
       selectedVersion = lastGood;
       lsSet('selectedVersion', String(lastGood));
+      setLiveMode(false); // watchdog fallback PINs on the last good version
       showNotice('v' + version + ' didn\u2019t start \u2014 back on v' + lastGood + '.');
       renderChrome();
       loadVersion(lastGood, /* isRollback */ true);
@@ -427,8 +461,9 @@
     }, timeoutMs || ALIVE_TIMEOUT_MS);
   }
 
-  function selectVersion(version) {
+  function selectVersion(version, pin) {
     if (version === selectedVersion && attemptVersion === version && aliveSignalled) return;
+    if (pin) setLiveMode(false); // tapping a version pins it
     hideNotice();
     selectedVersion = version;
     lsSet('selectedVersion', String(version));
@@ -436,6 +471,44 @@
     lsSet('pendingSince', String(Date.now()));
     renderChrome();
     loadVersion(version, false);
+  }
+
+  function goLive() {
+    // Unpin and load the newest latest (the "Back to live" / Update button).
+    if (!manifest) return;
+    hideNotice();
+    setLiveMode(true);
+    if (manifest.latest === selectedVersion) {
+      renderChrome(); // already on latest; just unpinned
+      return;
+    }
+    selectVersion(manifest.latest, /* pin */ false);
+  }
+
+  // ---------- live polling: auto-advance on a newer latest ----------
+  function maybeAutoAdvance() {
+    if (!manifest || !isLive()) return;
+    if (selectedVersion == null) return;
+    if (watchdogTimer) return; // a load is in flight; don't interrupt it
+    var latest = manifest.latest;
+    if (latest != null && latest > selectedVersion && versionEntry(latest)) {
+      selectVersion(latest, /* pin */ false);
+    }
+  }
+
+  function pollManifest() {
+    fetchManifest()
+      .then(function () { renderChrome(); maybeAutoAdvance(); })
+      .catch(function () {
+        // Stale manifest is tolerated, never an error: keep showing the
+        // last good data and retry on the next tick.
+        renderChrome();
+      });
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(pollManifest, 5000);
   }
 
   // ---------- boot ----------
@@ -470,6 +543,7 @@
         if (pendingIsStale) {
           lsDel('pendingVersion');
           lsDel('pendingSince');
+          setLiveMode(false); // stale attempt: fall back and PIN there
           if (lastGood != null && known(lastGood)) {
             selectedVersion = lastGood;
             lsSet('selectedVersion', String(lastGood));
@@ -479,9 +553,23 @@
             lsSet('selectedVersion', String(latest));
             showNotice('v' + pending + ' didn\u2019t start. Loaded the latest version instead.');
           }
+        } else if (isLive()) {
+          // LIVE (default): open on the newest latest — a publish that
+          // landed while the player was closed loads on open.
+          selectedVersion = latest;
+          lsSet('selectedVersion', String(latest));
+          if (pending != null && pending === latest) {
+            // Attempt still inside its window: keep watching it from here,
+            // with only the remainder of the 8s window left.
+            loadVersion(pending, false, pendingRemainder);
+            loadingStarted = true;
+          } else if (pending != null) {
+            // Orphaned pending for a different version: abandon it.
+            lsDel('pendingVersion');
+            lsDel('pendingSince');
+          }
         } else if (storedSelected != null && known(storedSelected)) {
-          // Normal open: keep the persisted selection. NEVER auto-switch to
-          // latest — the Update button is the only path to a newer version.
+          // PINNED: keep the persisted selection. NEVER auto-switch.
           selectedVersion = storedSelected;
           if (pending != null && pending === storedSelected) {
             // Attempt still inside its window: keep watching it from here,
@@ -494,10 +582,10 @@
             lsDel('pendingSince');
           }
         } else {
-          // First run (or the stored version vanished from the manifest):
-          // latest becomes the selection.
+          // Pinned selection vanished from the manifest: latest, live.
           selectedVersion = latest;
           lsSet('selectedVersion', String(latest));
+          setLiveMode(true);
         }
 
         renderChrome();
@@ -522,13 +610,15 @@
     });
 
     els.updateBtn.addEventListener('click', function () {
-      if (manifest) selectVersion(manifest.latest);
+      goLive();
     });
     els.versionsBtn.addEventListener('click', openSheet);
     els.backdrop.addEventListener('click', closeSheet);
     els.refreshBtn.addEventListener('click', function () {
-      fetchManifest().then(function () { renderChrome(); }).catch(function () { renderChrome(); });
+      fetchManifest().then(function () { renderChrome(); maybeAutoAdvance(); }).catch(function () { renderChrome(); });
     });
+
+    startPolling(); // 5s manifest poll — the live auto-update heartbeat
   }
 
   init();
